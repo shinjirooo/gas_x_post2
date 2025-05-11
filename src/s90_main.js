@@ -14,43 +14,28 @@ function testCalled() {
 
 
 // Callbackされたときに実行する関数
-function authCallback(request) {
-    testCalled();
-
-    //const { code } = request.parameter;
-    //Logger.log(code);
-    // リクエストパラメータに含まれているcodeを保存
-    //// リクエストパラメータに含まれているcodeを保存
-    //PropertiesService.getScriptProperties().setProperty("AUTH_CODE", code);
-
-    const service = getService_();
-    const isAuthrized = service.handleCallback(request);
-    if (isAuthrized) {
-        return HtmlService.createHtmlOutput('Success! You can close this tab.');
-        //const accessToken = service.getAccessToken();
-        //Logger.log(accessToken);
-    } else {
-        return HtmlService.createHtmlOutput('Denied. You can close this tab');
+function doGet(e) {
+    // codeを使って、tokenを取得し、保存
+    const code = e.parameter.code;
+    if (!code) {
+        return HtmlService.createHtmlOutput("認証コードがありません");
     }
+    getToken(code);
+    return HtmlService.createHtmlOutput('準備完了!!');
 }
 
 
-function getToken() {
-    const { code_challenge } = getPKCE();
-
-}
 
 
 function postTweet() {
-    const service = getService_();
-    if (service.hasAccess()) {
+    if (hasAccess()) {
         const response = UrlFetchApp.fetch(
             `${API_URL}/1866319451081306620/?tweet.fields=public_metrics`,
             {
                 method: "GET",
                 contentType: "application/json",
                 headers: {
-                    "Authorization": "Bearer " + service.getAccessToken(),
+                    "Authorization": "Bearer " + getAccessToken(),
                 },
             }
         );
@@ -59,7 +44,7 @@ function postTweet() {
 
     } else {
         // アクセストークンを持っていない場合は、URLを発行
-        const url = service.getAuthorizationUrl();
+        const url = getAuthorizationUrl();
         Logger.log(url);
     }
 }

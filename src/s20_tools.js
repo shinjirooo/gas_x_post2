@@ -40,41 +40,6 @@ function checkPKCE() {
 }
 
 
-
-// OAuth2.0サービスを取得
-function getService_() {
-    //const { code_verifier, code_challenge } = getPKCE();
-
-    return OAuth2.createService("Twitter")
-        // Set the endpoint URLs.
-        .setAuthorizationBaseUrl(AUTHORIZE_URL)
-        .setTokenUrl(`${TOKEN_URL}?code_verifier=${code_verifier}`)
-
-        // Set the client ID and secret, from the X Console.
-        .setClientId(CLIENT_ID)
-        .setClientSecret(CLIENT_SECRET)
-
-        // Set the name of the callback function in the script referenced
-        // above that should be invoked to complete the OAuth flow.
-        .setCallbackFunction("authCallback")
-
-        // Set the property store where authorized tokens should be persisted.
-        .setPropertyStore(PropertiesService.getScriptProperties())
-
-        // Set the scopes to request (space-separated for Google services).
-        .setScope(SCOPE)
-
-        // Below are X OAuth2 parameters.
-        //.setParam("response_type", "code")
-        //.setParam("code_challenge_method", "S256")
-        //.setParam("code_challenge", code_challenge)
-        //.setParam("state", STATE)
-        .generateCodeVerifier()
-        .setTokenHeaders({
-            "Authorization": "Basic " + Utilities.base64Encode(CLIENT_ID + ":" + CLIENT_SECRET),
-            "Content-Type": "application/x-www-form-urlencoded",
-        })
-        .setParam("grant_type", "authorization_code")
-    ;
-
+function getService() {
+    
 }
