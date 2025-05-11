@@ -1,6 +1,4 @@
-
-
-
+// X API: Public Metricsを取得
 function xGetPublicMetrics() {
     xApiCall(
         "GET",
@@ -10,6 +8,7 @@ function xGetPublicMetrics() {
     );
 }
 
+// X API: ツイートを投稿
 function xPostSomething() {
     xApiCall(
         "POST",
@@ -24,6 +23,7 @@ function xPostSomething() {
 }
 
 
+// メイン関数
 function postTweet() {
     if (hasAccess()) {
         //xGetPublicMetrics();

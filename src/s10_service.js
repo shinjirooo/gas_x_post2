@@ -33,21 +33,18 @@ function getPKCE() {
     return { verifier, code_challenge };
 }
 
+
 // アクセストークンを取得
 function getAccessToken() {
     return PropertiesService.getScriptProperties().getProperty("ACCESS_TOKEN");
 }
+
 
 // アクセストークンを持っているか確認
 function hasAccess() {
     return PropertiesService.getScriptProperties().getProperty("ACCESS_TOKEN") !== null;
 }
 
-// アクセストークンを確認
-function checkAccessToken() {
-    const access_token = PropertiesService.getScriptProperties().getProperty("ACCESS_TOKEN");
-    Logger.log(access_token);
-}
 
 // 認証URLを取得
 function getAuthorizationUrl() {
@@ -69,12 +66,14 @@ function getAuthorizationUrl() {
     return url;
 }
 
+
 // "Basic クライアントID:クライアントシークレット" を生成
 function getAuthorization() {
     const client_id = PropertiesService.getScriptProperties().getProperty("CLIENT_ID");
     const client_secret = PropertiesService.getScriptProperties().getProperty("CLIENT_SECRET");
     return "Basic " + Utilities.base64Encode(client_id + ":" + client_secret);
 }
+
 
 // アクセストークンを取得
 function getToken(code) {
