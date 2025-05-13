@@ -38,6 +38,10 @@ function getPKCE() {
 function getAccessToken() {
     return PropertiesService.getScriptProperties().getProperty("ACCESS_TOKEN");
 }
+// リフレッシュトークンを取得
+function getRefreshToken() {
+    return PropertiesService.getScriptProperties().getProperty("REFRESH_TOKEN");
+}
 
 
 // アクセストークンを持っているか確認
@@ -68,7 +72,7 @@ function getAuthorizationUrl() {
 
 
 // "Basic クライアントID:クライアントシークレット" を生成
-function getAuthorization() {
+function getBasicAuthorization() {
     const client_id = PropertiesService.getScriptProperties().getProperty("CLIENT_ID");
     const client_secret = PropertiesService.getScriptProperties().getProperty("CLIENT_SECRET");
     return "Basic " + Utilities.base64Encode(client_id + ":" + client_secret);
@@ -79,7 +83,7 @@ function getAuthorization() {
 function getToken(code) {
     const headers = {
         "Content-Type": "application/x-www-form-urlencoded",
-        "Authorization": getAuthorization(),
+        "Authorization": getBasicAuthorization(),
     }
     const params = {
         "grant_type": "authorization_code",
@@ -109,7 +113,7 @@ function getToken(code) {
 function getRefreshedToken() {
     const headers = {
         "Content-Type": "application/x-www-form-urlencoded",
-        "Authorization": getAuthorization(),
+        "Authorization": getBasicAuthorization(),
     }
     const params = {
         "grant_type": "refresh_token",
@@ -146,60 +150,111 @@ function doGet(e) {
 }
 
 
+// httpステータスコードで成功かどうかの判定(200番台かどうか)
+function isSuccess(responseCode) {
+    return responseCode >= 200 && responseCode < 300;
+}
+
+
 // Xへの処理処理に認証情報の取得処理をラップする関数
 function xApiCall(method, url, headers, payload) {
-    // まずはアクセストークンを使ってAPIを呼び出す
-    const authorizedHeaders = {
-        ...headers,
-        "Authorization": "Bearer " + getAccessToken(),
-    };
-    const response = UrlFetchApp.fetch(
-        url,
-        {
-            method,
-            contentType: 'application/json',
-            headers: authorizedHeaders,
-            payload: JSON.stringify(payload),
-        }
-    );
-    const result = JSON.parse(response.getContentText());
-    Logger.log(1);
-    Logger.log(result);
-
-    // エラーがない場合はここで正常終了
-    if (!result.errors) {
-        return result;
-    }
-    
-    // エラーコードが89の場合は、expiredなので、リフレッシュトークンを使って新しいトークンを取得する
-    if ((result.errors) && (result.errors[0].code === 89)) {
-        Logger.log(2);
-        const refreshedAuthorizedHeaders = {
+    // アクセストークンを使ってAPIを呼び出す
+    function callXApi(method, url, headers, payload) {
+        const authorizedHeaders = {
             ...headers,
-            "Authorization": "Bearer " + getRefreshedToken(),
+            "Authorization": "Bearer " + getAccessToken(),
         };
         const response = UrlFetchApp.fetch(
             url,
             {
                 method,
                 contentType: 'application/json',
-                headers: refreshedAuthorizedHeaders,
+                headers: authorizedHeaders,
                 payload: JSON.stringify(payload),
+                muteHttpExceptions: true,
+            },
+        );
+        const result = JSON.parse(response.getContentText());
+        const responseCode = response.getResponseCode();
+        return { result, responseCode };
+    }
+    // リフレッシュトークンを使って新しいトークンを取得
+    function refreshToken() {
+        const refreshedAuthorizedHeaders = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization": getBasicAuthorization(),
+        };
+        const getRefresTokenPayload = {
+            grant_type: "refresh_token",
+            refresh_token: getRefreshToken(),
+            code_verifier: getPKCE().verifier,
+        };
+        const response = UrlFetchApp.fetch(
+            TOKEN_URL,
+            {
+                method: "POST",
+                contentType: 'application/json',
+                headers: refreshedAuthorizedHeaders,
+                payload: JSON.stringify(getRefresTokenPayload),
+                muteHttpExceptions: true,
             }
         );
         const result = JSON.parse(response.getContentText());
-        Logger.log(3);
+        const responseCode = response.getResponseCode();
+        return { result, responseCode };
+    }
+
+    // まずは、今のアクセストークンを使ってAPIを呼び出す
+    Logger.log("[I] Calling the API...");
+    const { result, responseCode } = callXApi(method, url, headers, payload);
+    
+    // JavaScriptのfetchでは、errorが含まれないので、404エラーの場合は、expiredと判断する
+    let isExpired = false;
+    if (isSuccess(responseCode)) {
+        Logger.log("[I] Successfully called the API!");
+        // エラーがない場合はここで正常終了
+        return result;
+    } else if (responseCode === 401) {  // 401: Unauthorized
+        // 401エラーの場合は、expiredと判断する
+        Logger.log("[W] The access_token is expired...");
+        isExpired = true;
+    } else {
+        // それ以外のエラーは、そのまま返す
+        Logger.log(`[E] First API call failed: ${responseCode}`);
         Logger.log(result);
         return result;
     }
+    // 401エラーの場合だけ、続く
+    
+    // エラーコードが89の場合は、expiredなので、リフレッシュトークンを使って新しいトークンを取得
+    if (isExpired) {
+        Logger.log("[I] Refreshing the access_token...");
+        // リフレッシュトークンを使って新しいトークンを取得
+        const { result: resultRefreshedToken, responseCode: responseCodeRefreshedToken } = refreshToken();
+        Logger.log(resultRefreshedToken);
+        if (responseCodeRefreshedToken !== 200) {
+            Logger.log(`[E] Failed to refresh token...: ${responseCodeRefreshedToken}`);
+            Logger.log(resultRefreshedToken);
+            return result;
+        }
+        Logger.log("[I] Successfully refreshed the access_token!");
+        // 取得したアクセストークンとリフレッシュトークンを保存
+        PropertiesService.getScriptProperties().setProperty("ACCESS_TOKEN", resultRefreshedToken.access_token);
+        PropertiesService.getScriptProperties().setProperty("REFRESH_TOKEN", resultRefreshedToken.refresh_token);
+    }
 
-    // エラーがない場合はここで正常終了
-    if (!result.errors) {
-        Logger.log(4);
-        return result;
+    // 再び、アクセストークンを使って新しいトークンを取得して、再度APIを呼び出す
+    Logger.log("[I] Calling the API again...");
+    const { result: resultXApiCall2, responseCode: responseCode2 } = callXApi(method, url, headers, payload);
+
+    // 成功時はここで正常終了
+    if (isSuccess(responseCode2)) {
+        Logger.log("[I] Success using the refreshed token!"); // リフレッシュ後のトークンを使って成功
+        return resultXApiCall2;
     }
 
     // 何かのエラー
-    Logger.log(9);
+    Logger.log(`[E] Failed to call the API...: ${responseCode2}`);
+    Logger.log(resultXApiCall2);
     return result;
 }
