@@ -50,27 +50,35 @@ function getPostMessage() {
     // POSTする行を探す(データが始まるi=1から)
     for (let i=1; i<rows.length; i++) {
         const [_dt, _tm, dateTime, content, isPosted] = rows[i];
-        // Date/Timeを"今"を過ぎていて、Status列がPOSTEDでない行を探す
-        if ((isPosted !== 'POSTED') && (dateTime < now)) {
+        // Date/Timeが"今"より過去で、Status列がPOSTEDでない行を探す
+        if ((dateTime < now) && (isPosted !== 'POSTED')) {
             Logger.log(`[I] Found the line: ${i+1}`);
-            // 見つけたら返して終了
-            return content;
+            // 見つけたら、行番号とメッセージを返して終了
+            return { line: i+1, message: content };
         }
-
-        // 行を更新
-        sheet.getRange(i + 1, 5).setValue('POSTED');
     }
 
     // 見つからなかったらundefinedを返す
-    return undefined;
+    return { line: undefined, message: undefined };
+}
+
+function updatePostedMark(line) {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME); // スプレッドシートの取得
+    sheet.getRange(line, 5).setValue('POSTED');
 }
 
 
 function main() {
-    const message = getPostMessage();
-    
+    // メッセージを取得
+    const { line, message } = getPostMessage();
+
     if (message) {
+        // メッセージを投稿
         postTweet(message);
+
+        // 行を更新
+        updatePostedMark(line);
+
         Logger.log(`[I] Posted: ${message}`);
     } else {
         Logger.log('[E] No message');
