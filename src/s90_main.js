@@ -34,7 +34,9 @@ function postTweet(postMessage) {
         const url = getAuthorizationUrl();
         Logger.log("下記のURLをブラウザで開いて、認証コードを取得してください。");
         Logger.log(url);
+        return false;
     }
+    return true;
 }
 
 
@@ -74,7 +76,11 @@ function main() {
 
     if (message) {
         // メッセージを投稿
-        postTweet(message);
+        const isPosted = postTweet(message);
+        if (!isPosted) {
+            Logger.log('[E] Failed to post');
+            return;
+        }
 
         // 行を更新
         updatePostedMark(line);
