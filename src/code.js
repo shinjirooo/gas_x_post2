@@ -1,8 +1,8 @@
 // 初期設定手順
-// 1. 設定のREDIRECT_URL"以外"を入力する
+// 1. 設定のREDIRECT_URI"以外"を入力する
 // 2. initialize()を実行する
 // 3. ウェブアプリとしてデプロイする（ウェブアプリURLを取得する）
-// 4. 設定のREDIRECT_URLへ、ウェブアプリURLを設定して、もう一度initialize()を実行する
+// 4. 設定のREDIRECT_URIへ、ウェブアプリURLを設定して、もう一度initialize()を実行する
 // 5. X Developer Portalで、Callback URI / Redirect URLに、ウェブアプリURLを設定する
 // 6. main()を実行する
 //      - "下記のURLをブラウザで開いて、認証コードを取得してください。"の下に出るURLをブラウザで開いて、許可する
@@ -13,7 +13,7 @@
 const SHEET_NAME = "Contents";
 const INITIAL_CLIENT_ID = "";
 const INITIAL_CLIENT_SECRET = "";
-const REDIRECT_URL = "";    // デプロイ後に得られる、ウェブアプリURLを設定して、initialize()を実行する
+const REDIRECT_URI = "";    // デプロイ後に得られる、ウェブアプリURLを設定して、initialize()を実行する
 
 
 // 固定値
@@ -23,7 +23,7 @@ const CLIENT_SECRET = PropertiesService.getScriptProperties().getProperty("CLIEN
 const AUTHORIZE_URL = "https://twitter.com/i/oauth2/authorize";
 const TOKEN_URL = "https://api.twitter.com/2/oauth2/token";
 const API_URL = "https://api.twitter.com/2/tweets";
-const SCOPE = "users.read tweet.read offline.access tweet.write";
+const SCOPE = "users.read%20tweet.read%20offline.access%20tweet.write";
 const STATE = "1234567890";
 
 // 初期処理
@@ -34,7 +34,7 @@ function initialize() {
 
     PropertiesService.getScriptProperties().setProperty("CLIENT_ID", INITIAL_CLIENT_ID);
     PropertiesService.getScriptProperties().setProperty("CLIENT_SECRET", INITIAL_CLIENT_SECRET);
-    PropertiesService.getScriptProperties().setProperty("REDIRECT_URL", REDIRECT_URL);
+    PropertiesService.getScriptProperties().setProperty("REDIRECT_URI", REDIRECT_URI);
     Logger.log("initialized");
 }
 function checkProperties() {
@@ -55,7 +55,7 @@ function checkProperties() {
     Logger.log(verifier);
     Logger.log(code_challenge);
 
-    const redirectUri = PropertiesService.getScriptProperties().getProperty("REDIRECT_URL");
+    const redirectUri = PropertiesService.getScriptProperties().getProperty("REDIRECT_URI");
     Logger.log(redirectUri);
 }
 
@@ -118,11 +118,11 @@ function getAuthorizationUrl() {
     }
 
     const { code_challenge } = getPKCE();
-    const redirect_url = PropertiesService.getScriptProperties().getProperty("REDIRECT_URL");
+    const redirect_uri = PropertiesService.getScriptProperties().getProperty("REDIRECT_URI");
 
     const params = {
         client_id: PropertiesService.getScriptProperties().getProperty("CLIENT_ID"),
-        redirect_url: encodeURIComponent(redirect_url),
+        redirect_uri: encodeURIComponent(redirect_uri),
         response_type: "code",
         code_challenge_method: "S256",
         code_challenge: code_challenge,
@@ -156,7 +156,7 @@ function getToken(code) {
     const params = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_url": PropertiesService.getScriptProperties().getProperty("REDIRECT_URL"),
+        "redirect_uri": PropertiesService.getScriptProperties().getProperty("REDIRECT_URI"),
         "client_id": PropertiesService.getScriptProperties().getProperty("CLIENT_ID"),
         "code_verifier": getPKCE().verifier,
     }
