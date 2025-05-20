@@ -16,13 +16,8 @@
 - スクリプトの準備
     1. 機能拡張＞Apps Scriptを起動
     2. `コード.gs`に最初から入っているコードを全部消す
-    3. 下記のソースのコードを順番にコピーして、`コード.gs`の下に貼り付ける
-       1. `s00_initialize.js`
-       2. `s10_service.js`
-       3. `s90_main.js`
-    4. コードの上の方にある、`function initialize()`の中の、
-       1. `setProperty("CLIENT_ID", "")` の `""` に、先程取得したCLIENT_IDを設定
-       2. `setProperty("CLIENT_SECRET", "")` の `""` に、先程取得したCLIENT_SECRETを設定
+    3. `code.js`のコードをコピーして、`コード.gs`に貼り付ける
+    4. コードの上の方にある、設定の`SHEET_NAME`、`INITIAL_CLIENT_ID`、`INITIAL_CLIENT_SECRET`を入力する
     5. メニュー上の関数のプルダウンで、`initialize`を選択し、実行ボタンを押す
        1. ログに"initliazed"と出力されればOK
     6. デプロイする
@@ -37,12 +32,13 @@
        9. Allowボタンを押す
        10. ウェブアプリのURLをコピーするリンクをクリックし、コピーする
        11. X Developer PortalのCallback URL / Redirect URLに、コピーしたURLを設定する
-    1.  OAuth2.0の設定
+    1.  `code.js`のコードの上の方にある、設定の`REDIRECT_URL`に、コピーしたURLを設定する
+    2.  OAuth2.0の設定
         1.  メニュー上の関数のプルダウンで、`main`を選択し、実行ボタンを押す
         2.  ログにURLが出力されるので、それをコピーしてブラウザで開く
         3.  GASが使用するXアカウントを選択し、許可する
         4.  "準備完了!!"と出力されたらOK
-    2.  スクリプトの設定値の確認
+    3.  スクリプトの設定値の確認
         1.  メニュー上の関数のプルダウンで、`checkProperties`を選択し、実行ボタンを押す
         2.  6行表示されるが、4行だけ表示されればOK. 下の2行は空でOK
 - 動作の確認
