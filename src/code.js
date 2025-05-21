@@ -169,7 +169,7 @@ function getToken(code) {
     const data = JSON.parse(response.getContentText());
 
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME); // スプレッドシートの取得
-    sheet.getRange(10,2).setValue(data);
+    //sheet.getRange(10,2).setValue(data);
 
     // アクセストークンとリフレッシュトークンを保存
     PropertiesService.getScriptProperties().setProperty("ACCESS_TOKEN", data.access_token);
