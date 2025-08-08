@@ -1,19 +1,14 @@
-// 初期設定手順
-// 1. 設定のREDIRECT_URI"以外"を入力する
-// 2. initialize()を実行する
-// 3. ウェブアプリとしてデプロイする（ウェブアプリURLを取得する）
-// 4. 設定のREDIRECT_URIへ、ウェブアプリURLを設定して、もう一度initialize()を実行する
-// 5. X Developer Portalで、Callback URI / Redirect URLに、ウェブアプリURLを設定する
-// 6. main()を実行する
-//      - "下記のURLをブラウザで開いて、認証コードを取得してください。"の下に出るURLをブラウザで開いて、許可する
+// 初期設定手順（認証＋取得版）
+// 1. createSetupSheet() を実行（設定入力用シートを作成）
+// 2. シートに CLIENT_ID / CLIENT_SECRET / REDIRECT_URI を入力
+// 3. savePropertiesFromSetupSheet() を実行（プロパティへ保存、シートは任意で削除）
+// 4. ウェブアプリとしてデプロイ（URLをX Developer PortalのCallbackに設定）
+// 5. main() を実行 → URLで認証 → 再度 main() でツイート取得
 
 
 
 // 設定
-const SHEET_NAME = "Contents";
-const INITIAL_CLIENT_ID = "";
-const INITIAL_CLIENT_SECRET = "";
-const REDIRECT_URI = "";    // デプロイ後に得られる、ウェブアプリURLを設定して、initialize()を実行する
+const SETUP_SHEET_NAME = "XAppSetup";
 
 
 // 固定値
@@ -23,19 +18,60 @@ const CLIENT_SECRET = PropertiesService.getScriptProperties().getProperty("CLIEN
 const AUTHORIZE_URL = "https://twitter.com/i/oauth2/authorize";
 const TOKEN_URL = "https://api.twitter.com/2/oauth2/token";
 const API_URL = "https://api.twitter.com/2/tweets";
-const SCOPE = "users.read%20tweet.read%20offline.access%20tweet.write";
+const API_BASE_URL = "https://api.twitter.com/2";
+const SCOPE = "users.read%20tweet.read%20offline.access";
 const STATE = "1234567890";
 
 // 初期処理
 // 初めての実行時に、正しい値を入れて１回実行する。
 // githubに、ここにコードを入れて登録しないようにするため。
 function initialize() {
-    Logger.log("initialize()");
+    Logger.log("initialize(): create setup sheet");
+    createSetupSheet();
+}
 
-    PropertiesService.getScriptProperties().setProperty("CLIENT_ID", INITIAL_CLIENT_ID);
-    PropertiesService.getScriptProperties().setProperty("CLIENT_SECRET", INITIAL_CLIENT_SECRET);
-    PropertiesService.getScriptProperties().setProperty("REDIRECT_URI", REDIRECT_URI);
-    Logger.log("initialized");
+// 設定入力用のシートを作成
+function createSetupSheet() {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName(SETUP_SHEET_NAME);
+    if (!sheet) {
+        sheet = ss.insertSheet(SETUP_SHEET_NAME);
+    }
+    sheet.clear();
+    sheet.getRange(1, 1, 1, 3).setValues([["Key", "Value", "Note"]]);
+    const rows = [
+        ["CLIENT_ID", "", "X Developer PortalのClient IDを入力"],
+        ["CLIENT_SECRET", "", "X Developer PortalのClient Secretを入力"],
+        ["REDIRECT_URI", "", "GASデプロイURLを入力（Callback URLと同じ）"],
+    ];
+    sheet.getRange(2, 1, rows.length, 3).setValues(rows);
+    sheet.setColumnWidths(1, 3, 240);
+    Logger.log(`[I] 設定シート '${SETUP_SHEET_NAME}' を用意しました。必要項目を入力してください。`);
+}
+
+// 設定シートの値をスクリプトプロパティへ保存（保存後にシート削除するかは引数で制御）
+function savePropertiesFromSetupSheet(deleteSheetAfter) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SETUP_SHEET_NAME);
+    if (!sheet) {
+        Logger.log(`[E] 設定シート '${SETUP_SHEET_NAME}' が見つかりません。createSetupSheet() を実行してください。`);
+        return;
+    }
+    const values = sheet.getDataRange().getValues();
+    const props = PropertiesService.getScriptProperties();
+    let savedCount = 0;
+    for (let i = 1; i < values.length; i++) {
+        const [key, value] = values[i];
+        if (key && value) {
+            props.setProperty(String(key), String(value));
+            savedCount++;
+        }
+    }
+    Logger.log(`[I] ${savedCount} 件の設定を保存しました。`);
+    if (deleteSheetAfter === true) {
+        ss.deleteSheet(sheet);
+        Logger.log(`[I] 設定シート '${SETUP_SHEET_NAME}' を削除しました。`);
+    }
 }
 function checkProperties() {
     Logger.log("checkProperties()");
@@ -168,9 +204,6 @@ function getToken(code) {
     });
     const data = JSON.parse(response.getContentText());
 
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME); // スプレッドシートの取得
-    //sheet.getRange(10,2).setValue(data);
-
     // アクセストークンとリフレッシュトークンを保存
     PropertiesService.getScriptProperties().setProperty("ACCESS_TOKEN", data.access_token);
     PropertiesService.getScriptProperties().setProperty("REFRESH_TOKEN", data.refresh_token);
@@ -239,16 +272,16 @@ function xApiCall(method, url, headers, payload) {
             ...headers,
             "Authorization": "Bearer " + getAccessToken(),
         };
-        const response = UrlFetchApp.fetch(
-            url,
-            {
-                method,
-                contentType: 'application/json',
-                headers: authorizedHeaders,
-                payload: JSON.stringify(payload),
-                muteHttpExceptions: true,
-            },
-        );
+        const options = {
+            method,
+            headers: authorizedHeaders,
+            muteHttpExceptions: true,
+        };
+        if (method !== 'GET' && payload !== undefined) {
+            options.contentType = 'application/json';
+            options.payload = JSON.stringify(payload);
+        }
+        const response = UrlFetchApp.fetch(url, options);
         const result = JSON.parse(response.getContentText());
         const responseCode = response.getResponseCode();
         return { result, responseCode };
@@ -267,16 +300,12 @@ function xApiCall(method, url, headers, payload) {
             refresh_token: getRefreshToken(),
             code_verifier: getPKCE().verifier,
         };
-        const response = UrlFetchApp.fetch(
-            TOKEN_URL,
-            {
-                method: "POST",
-                contentType: 'application/json',
-                headers: refreshedAuthorizedHeaders,
-                payload: JSON.stringify(getRefresTokenPayload),
-                muteHttpExceptions: true,
-            }
-        );
+        const response = UrlFetchApp.fetch(TOKEN_URL, {
+            method: "POST",
+            headers: refreshedAuthorizedHeaders,
+            payload: getRefresTokenPayload,
+            muteHttpExceptions: true,
+        });
         const result = JSON.parse(response.getContentText());
         const responseCode = response.getResponseCode();
         return { result, responseCode };
@@ -340,110 +369,22 @@ function xApiCall(method, url, headers, payload) {
     return result;
 }
 
-// X API: Public Metricsを取得
-function xGetPublicMetrics() {
-    xApiCall(
-        "GET",
-        `${API_URL}/1866319451081306620/?tweet.fields=public_metrics`,
-        {},
-        {}
-    );
+// 認証済みアカウント情報を取得
+function xGetMyAccount() {
+    const url = `${API_BASE_URL}/users/me?user.fields=id,name,username`; 
+    return xApiCall("GET", url, {}, undefined);
 }
 
-// X API: ツイートを投稿
-function xPostSomething(postMessage) {
-    xApiCall(
-        "POST",
-        `${API_URL}`,
-        {
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        {
-            "text": postMessage
-        }
-    );
-}
-
-
-// メイン関数
-// postしたときはtrue、しないときはfalseを返す
-function postTweet(postMessage) {
-    if (DEBUG) {
-        Logger.log("postTweet()");
+// 認証済みアカウントの最新ツイートを取得
+function xGetMyRecentTweets(maxResults) {
+    const me = xGetMyAccount();
+    if (!me || !me.data || !me.data.id) {
+        Logger.log('[E] Failed to get my account info');
+        return me;
     }
-
-    if (hasAccess()) {
-        if (DEBUG) {
-            Logger.log("hasAccess: true");
-        }
-
-        // メッセージを投稿
-        xPostSomething(postMessage);
-
-    } else {
-        if (DEBUG) {
-            Logger.log("hasAccess: false");
-        }
-
-        // アクセストークンを持っていない場合は、URLを発行
-        const url = getAuthorizationUrl();
-        Logger.log("下記のURLをブラウザで開いて、認証コードを取得してください。");
-        Logger.log(url);
-        return false;
-    }
-
-    if (DEBUG) {
-        Logger.log("postTweet(): retrun true");
-    }
-    return true;
-}
-
-
-// スプレッドシートからポストするメッセージを取得
-function getPostMessage() {
-    if (DEBUG) {
-        Logger.log("getPostMessage()");
-    }
-
-    // 現在の日時を取得
-    const now = new Date();
-    if (DEBUG) {
-        Logger.log("now: " + now);
-    }
-
-    // シートの情報を取得
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME); // スプレッドシートの取得
-    const rows = sheet.getDataRange().getValues(); // 全行のデータを取得
-    if (DEBUG) {
-        Logger.log("rows.length: " + rows.length);
-    }
-
-    // POSTする行を探す(データが始まるi=1から)
-    for (let i=1; i<rows.length; i++) {
-        const [_dt, _tm, dateTime, content, isPosted] = rows[i];
-        if (DEBUG) {
-            Logger.log("i: " + i);
-            Logger.log("dateTime: " + dateTime);
-            Logger.log("isPosted: " + isPosted);
-        }
-        // Date/Timeが"今"より過去で、Status列がPOSTEDでない行を探す
-        if ((dateTime < now) && (isPosted !== 'POSTED')) {
-            Logger.log(`[I] Found the line: ${i+1}`);
-            // 見つけたら、行番号とメッセージを返して終了
-            return { line: i+1, message: content };
-        }
-    }
-
-    // 見つからなかったらundefinedを返す
-    if (DEBUG) {
-        Logger.log("[W] Not found");
-    }
-    return { line: undefined, message: undefined };
-}
-
-function updatePostedMark(line) {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME); // スプレッドシートの取得
-    sheet.getRange(line, 5).setValue('POSTED');
+    const userId = me.data.id;
+    const url = `${API_BASE_URL}/users/${userId}/tweets?max_results=${maxResults || 10}&tweet.fields=created_at,public_metrics`;
+    return xApiCall("GET", url, {}, undefined);
 }
 
 
@@ -451,29 +392,16 @@ function main() {
     if (DEBUG) {
         Logger.log("main()");
         checkProperties();
-        Logger.log("SHEET_NAME: " + SHEET_NAME);
     }
 
-    // メッセージを取得
-    const { line, message } = getPostMessage();
-    if (DEBUG) {
-        Logger.log("line: " + line);
-        Logger.log("message: \"" + message + "\"");
+    if (!hasAccess()) {
+        const url = getAuthorizationUrl();
+        Logger.log("下記のURLをブラウザで開いて、認証を完了してください。");
+        Logger.log(url);
+        return;
     }
 
-    if (message) {
-        // メッセージを投稿
-        const isPosted = postTweet(message);
-        if (!isPosted) {
-            Logger.log('[E] Failed to post');
-            return;
-        }
-
-        // 行を更新
-        updatePostedMark(line);
-
-        Logger.log(`[I] Posted: ${message}`);
-    } else {
-        Logger.log('[E] No message');
-    }
+    const tweets = xGetMyRecentTweets(10);
+    Logger.log('[I] My recent tweets:');
+    Logger.log(JSON.stringify(tweets, null, 2));
 }
