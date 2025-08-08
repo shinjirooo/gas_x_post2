@@ -8,16 +8,17 @@
 ## スクリプトの準備
 1. スプレッドシートで 機能拡張＞Apps Script を開く
 2. `コード.gs` の中身を空にして、`src/code.js` の内容を貼り付け
-3. コード上部の設定に以下を入力
-   - `INITIAL_CLIENT_ID`
-   - `INITIAL_CLIENT_SECRET`
-4. 関数プルダウンで `initialize` を選び、実行（ログに "initialized" が出ればOK）
-5. デプロイ
+3. 関数プルダウンで `initialize` を実行（設定用シート `XAppSetup` を作成）
+4. デプロイ
    - デプロイ＞新しいデプロイ＞ウェブアプリを選択→そのままデプロイ
    - 表示にしたがってアクセスを承認
-   - 表示された ウェブアプリURL をコピー
-6. X Developer Portal の Callback URL / Redirect URL に、コピーした URL を設定
-7. コード上部の `REDIRECT_URI` にも同じ URL を設定し、再度 `initialize` を実行
+   - 表示された「ウェブアプリURL」をコピー
+5. スプレッドシートの `XAppSetup` シートに以下を入力
+   - `CLIENT_ID`: X Developer PortalのClient ID
+   - `CLIENT_SECRET`: X Developer PortalのClient Secret
+   - `REDIRECT_URI`: 手順4でコピーしたウェブアプリURL（Callback URL と同じ）
+6. 関数プルダウンで `savePropertiesFromSetupSheet` を実行（必要なら `true` を渡して実行するとシートを削除）
+7. X Developer Portal の Callback URL / Redirect URL にも、手順4のURLを設定
 
 ## 認証フロー
 1. 関数プルダウンで `main` を実行
