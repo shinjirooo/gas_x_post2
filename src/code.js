@@ -23,7 +23,8 @@ const CLIENT_SECRET = PropertiesService.getScriptProperties().getProperty("CLIEN
 const AUTHORIZE_URL = "https://twitter.com/i/oauth2/authorize";
 const TOKEN_URL = "https://api.twitter.com/2/oauth2/token";
 const API_URL = "https://api.twitter.com/2/tweets";
-const SCOPE = "users.read%20tweet.read%20offline.access%20tweet.write";
+const API_BASE_URL = "https://api.twitter.com/2";
+const SCOPE = "users.read%20tweet.read%20offline.access";
 const STATE = "1234567890";
 
 // 初期処理
@@ -239,16 +240,16 @@ function xApiCall(method, url, headers, payload) {
             ...headers,
             "Authorization": "Bearer " + getAccessToken(),
         };
-        const response = UrlFetchApp.fetch(
-            url,
-            {
-                method,
-                contentType: 'application/json',
-                headers: authorizedHeaders,
-                payload: JSON.stringify(payload),
-                muteHttpExceptions: true,
-            },
-        );
+        const options = {
+            method,
+            headers: authorizedHeaders,
+            muteHttpExceptions: true,
+        };
+        if (method !== 'GET' && payload !== undefined) {
+            options.contentType = 'application/json';
+            options.payload = JSON.stringify(payload);
+        }
+        const response = UrlFetchApp.fetch(url, options);
         const result = JSON.parse(response.getContentText());
         const responseCode = response.getResponseCode();
         return { result, responseCode };
@@ -267,16 +268,12 @@ function xApiCall(method, url, headers, payload) {
             refresh_token: getRefreshToken(),
             code_verifier: getPKCE().verifier,
         };
-        const response = UrlFetchApp.fetch(
-            TOKEN_URL,
-            {
-                method: "POST",
-                contentType: 'application/json',
-                headers: refreshedAuthorizedHeaders,
-                payload: JSON.stringify(getRefresTokenPayload),
-                muteHttpExceptions: true,
-            }
-        );
+        const response = UrlFetchApp.fetch(TOKEN_URL, {
+            method: "POST",
+            headers: refreshedAuthorizedHeaders,
+            payload: getRefresTokenPayload,
+            muteHttpExceptions: true,
+        });
         const result = JSON.parse(response.getContentText());
         const responseCode = response.getResponseCode();
         return { result, responseCode };
@@ -340,110 +337,22 @@ function xApiCall(method, url, headers, payload) {
     return result;
 }
 
-// X API: Public Metricsを取得
-function xGetPublicMetrics() {
-    xApiCall(
-        "GET",
-        `${API_URL}/1866319451081306620/?tweet.fields=public_metrics`,
-        {},
-        {}
-    );
+// 認証済みアカウント情報を取得
+function xGetMyAccount() {
+    const url = `${API_BASE_URL}/users/me?user.fields=id,name,username`; 
+    return xApiCall("GET", url, {}, undefined);
 }
 
-// X API: ツイートを投稿
-function xPostSomething(postMessage) {
-    xApiCall(
-        "POST",
-        `${API_URL}`,
-        {
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        {
-            "text": postMessage
-        }
-    );
-}
-
-
-// メイン関数
-// postしたときはtrue、しないときはfalseを返す
-function postTweet(postMessage) {
-    if (DEBUG) {
-        Logger.log("postTweet()");
+// 認証済みアカウントの最新ツイートを取得
+function xGetMyRecentTweets(maxResults) {
+    const me = xGetMyAccount();
+    if (!me || !me.data || !me.data.id) {
+        Logger.log('[E] Failed to get my account info');
+        return me;
     }
-
-    if (hasAccess()) {
-        if (DEBUG) {
-            Logger.log("hasAccess: true");
-        }
-
-        // メッセージを投稿
-        xPostSomething(postMessage);
-
-    } else {
-        if (DEBUG) {
-            Logger.log("hasAccess: false");
-        }
-
-        // アクセストークンを持っていない場合は、URLを発行
-        const url = getAuthorizationUrl();
-        Logger.log("下記のURLをブラウザで開いて、認証コードを取得してください。");
-        Logger.log(url);
-        return false;
-    }
-
-    if (DEBUG) {
-        Logger.log("postTweet(): retrun true");
-    }
-    return true;
-}
-
-
-// スプレッドシートからポストするメッセージを取得
-function getPostMessage() {
-    if (DEBUG) {
-        Logger.log("getPostMessage()");
-    }
-
-    // 現在の日時を取得
-    const now = new Date();
-    if (DEBUG) {
-        Logger.log("now: " + now);
-    }
-
-    // シートの情報を取得
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME); // スプレッドシートの取得
-    const rows = sheet.getDataRange().getValues(); // 全行のデータを取得
-    if (DEBUG) {
-        Logger.log("rows.length: " + rows.length);
-    }
-
-    // POSTする行を探す(データが始まるi=1から)
-    for (let i=1; i<rows.length; i++) {
-        const [_dt, _tm, dateTime, content, isPosted] = rows[i];
-        if (DEBUG) {
-            Logger.log("i: " + i);
-            Logger.log("dateTime: " + dateTime);
-            Logger.log("isPosted: " + isPosted);
-        }
-        // Date/Timeが"今"より過去で、Status列がPOSTEDでない行を探す
-        if ((dateTime < now) && (isPosted !== 'POSTED')) {
-            Logger.log(`[I] Found the line: ${i+1}`);
-            // 見つけたら、行番号とメッセージを返して終了
-            return { line: i+1, message: content };
-        }
-    }
-
-    // 見つからなかったらundefinedを返す
-    if (DEBUG) {
-        Logger.log("[W] Not found");
-    }
-    return { line: undefined, message: undefined };
-}
-
-function updatePostedMark(line) {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME); // スプレッドシートの取得
-    sheet.getRange(line, 5).setValue('POSTED');
+    const userId = me.data.id;
+    const url = `${API_BASE_URL}/users/${userId}/tweets?max_results=${maxResults || 10}&tweet.fields=created_at,public_metrics`;
+    return xApiCall("GET", url, {}, undefined);
 }
 
 
@@ -454,26 +363,14 @@ function main() {
         Logger.log("SHEET_NAME: " + SHEET_NAME);
     }
 
-    // メッセージを取得
-    const { line, message } = getPostMessage();
-    if (DEBUG) {
-        Logger.log("line: " + line);
-        Logger.log("message: \"" + message + "\"");
+    if (!hasAccess()) {
+        const url = getAuthorizationUrl();
+        Logger.log("下記のURLをブラウザで開いて、認証を完了してください。");
+        Logger.log(url);
+        return;
     }
 
-    if (message) {
-        // メッセージを投稿
-        const isPosted = postTweet(message);
-        if (!isPosted) {
-            Logger.log('[E] Failed to post');
-            return;
-        }
-
-        // 行を更新
-        updatePostedMark(line);
-
-        Logger.log(`[I] Posted: ${message}`);
-    } else {
-        Logger.log('[E] No message');
-    }
+    const tweets = xGetMyRecentTweets(10);
+    Logger.log('[I] My recent tweets:');
+    Logger.log(JSON.stringify(tweets, null, 2));
 }
