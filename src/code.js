@@ -388,6 +388,67 @@ function xGetMyRecentTweets(maxResults) {
 }
 
 
+// 対象ユーザー情報（connection_status付き）を取得
+function xGetUserByUsername(username) {
+    const normalized = String(username || '').trim().replace(/^@/, '');
+    const url = `${API_BASE_URL}/users/by/username/${encodeURIComponent(normalized)}?user.fields=connection_status,name,username`;
+    return xApiCall('GET', url, {}, undefined);
+}
+
+// 対象ユーザーが「認証済みの自分」をフォローしているか判定
+function checkUserFollowsMe(username) {
+    const normalized = String(username || '').trim().replace(/^@/, '');
+    const user = xGetUserByUsername(normalized);
+    const status = user && user.data && user.data.connection_status ? user.data.connection_status : [];
+    const followedBy = Array.isArray(status) && status.indexOf('followed_by') !== -1;
+    const following = Array.isArray(status) && status.indexOf('following') !== -1;
+    return {
+        target: (user && user.data && user.data.username) ? user.data.username : normalized,
+        followed_by: !!followedBy,
+        following: !!following,
+        raw: status,
+        relation: (followedBy && following) ? 'mutual' : (followedBy ? 'they_follow_you' : (following ? 'you_follow_them' : 'none')),
+    };
+}
+
+// デバッグ用: 認証を促し、判定を出力
+function debugCheckFollow(username) {
+    if (!hasAccess()) {
+        Logger.log('下記URLで認証してください:');
+        Logger.log(getAuthorizationUrl());
+        return;
+    }
+    const result = checkUserFollowsMe(username);
+    Logger.log(JSON.stringify(result, null, 2));
+}
+
+// 複数ユーザーのフォロー関係をまとめて確認
+function checkFollowRelationsForUsernames(usernames) {
+    const list = Array.isArray(usernames) ? usernames : [];
+    const normalizedList = list.map(function(name) {
+        return String(name || '').trim().replace(/^@/, '');
+    });
+    const results = {};
+    for (var i = 0; i < normalizedList.length; i++) {
+        var uname = normalizedList[i];
+        results[uname] = checkUserFollowsMe(uname);
+    }
+    return results;
+}
+
+// 0125ss25 と mmr_ars のフォロー関係を確認
+function checkFollowRelationsFor0125ss25AndMmrArs() {
+    if (!hasAccess()) {
+        Logger.log('下記URLで認証してください:');
+        Logger.log(getAuthorizationUrl());
+        return;
+    }
+    const targets = ['0125ss25', 'mmr_ars'];
+    const result = checkFollowRelationsForUsernames(targets);
+    Logger.log(JSON.stringify(result, null, 2));
+    return result;
+}
+
 function main() {
     if (DEBUG) {
         Logger.log("main()");
