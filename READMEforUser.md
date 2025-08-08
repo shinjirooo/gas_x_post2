@@ -31,6 +31,34 @@
   - `xGetMyAccount()`
   - `xGetMyRecentTweets(maxResults)`
 
+## フォロー関係の判定（connection_status）
+- 認証済み（ユーザーコンテキスト）のトークンで、特定ユーザーが自分をフォローしているかを判定できます
+- 使い方
+  1. 初回は `main` を実行し、ログに表示されるURLから認証を完了
+  2. スクリプトエディタから `debugCheckFollow('対象のユーザー名')` を実行
+  3. ログに以下の形式で出力されます
+
+```json
+{
+  "target": "username",
+  "followed_by": true,
+  "following": false,
+  "raw": ["followed_by"],
+  "relation": "they_follow_you"
+}
+```
+
+- 利用可能な関数
+  - `xGetUserByUsername(username)`: `connection_status` を含むユーザー情報を取得
+  - `checkUserFollowsMe(username)`: `followed_by` を含むかで判定結果を返却
+  - `checkFollowRelationsForUsernames([..usernames])`: 複数ユーザーの判定をまとめて返却
+  - `checkFollowRelationsFor0125ss25AndMmrArs()`: `0125ss25` と `mmr_ars` を固定でチェックし、ログ出力
+
+### 注意事項
+- 必要スコープは `users.read tweet.read offline.access`
+- App-only 認可では `connection_status` は取得できません（必ずユーザーコンテキストの認可で）
+- `@username` と `username` はどちらでも可（内部で正規化）
+
 ## 注意
 - 本版は投稿（ツイート作成）は行いません
 - 必要スコープ：`users.read tweet.read offline.access`
