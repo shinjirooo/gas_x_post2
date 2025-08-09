@@ -95,6 +95,20 @@ function checkProperties() {
     Logger.log(redirectUri);
 }
 
+// 認証情報のリセット（再認証を促すためにトークンとPKCEを削除）
+function resetAuth() {
+    if (this.GX && this.GX.Auth && typeof this.GX.Auth.revoke === 'function') {
+        return this.GX.Auth.revoke();
+    }
+    const props = PropertiesService.getScriptProperties();
+    var keys = [
+        'ACCESS_TOKEN', 'REFRESH_TOKEN', 'VERIFIER', 'CODE_CHALLENGE',
+        'GX_AUTH_ACCESS_TOKEN', 'GX_AUTH_REFRESH_TOKEN', 'GX_AUTH_VERIFIER', 'GX_AUTH_CODE_CHALLENGE'
+    ];
+    for (var i = 0; i < keys.length; i++) props.deleteProperty(keys[i]);
+    return true;
+}
+
 // PKCEのverifierとcode_challengeを生成
 function getPKCE() {
     const generateVerifier = () => {

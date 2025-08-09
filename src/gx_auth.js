@@ -9,6 +9,7 @@ this.GX.Auth = (function () {
   // 固定URL・スコープ
   var AUTHORIZE_URL = 'https://twitter.com/i/oauth2/authorize';
   var TOKEN_URL = 'https://api.twitter.com/2/oauth2/token';
+  var REVOKE_URL = 'https://api.twitter.com/2/oauth2/revoke';
   var API_BASE_URL = 'https://api.twitter.com/2';
   var SCOPE = 'users.read%20tweet.read%20offline.access';
   var STATE = 'gx_default_state';
@@ -44,6 +45,13 @@ this.GX.Auth = (function () {
     var props = PropertiesService.getScriptProperties();
     for (var i = 0; i < prefFirst.length; i++) {
       props.setProperty(prefFirst[i], String(value));
+    }
+  }
+
+  function deletePropBoth(prefFirst) {
+    var props = PropertiesService.getScriptProperties();
+    for (var i = 0; i < prefFirst.length; i++) {
+      props.deleteProperty(prefFirst[i]);
     }
   }
 
@@ -139,6 +147,28 @@ this.GX.Auth = (function () {
     return { data: data, responseCode: responseCode };
   }
 
+  function revoke() {
+    log('[GX.Auth] revoke');
+    var access = getPropAny(KEYS.ACCESS_TOKEN);
+    var refresh = getPropAny(KEYS.REFRESH_TOKEN);
+    var headers = { 'Content-Type': 'application/x-www-form-urlencoded', 'Authorization': getBasicAuthorization() };
+    try {
+      if (access) {
+        UrlFetchApp.fetch(REVOKE_URL, { method: 'POST', headers: headers, payload: { token: access, token_type_hint: 'access_token' }, muteHttpExceptions: true });
+      }
+    } catch (e1) {}
+    try {
+      if (refresh) {
+        UrlFetchApp.fetch(REVOKE_URL, { method: 'POST', headers: headers, payload: { token: refresh, token_type_hint: 'refresh_token' }, muteHttpExceptions: true });
+      }
+    } catch (e2) {}
+    deletePropBoth(KEYS.ACCESS_TOKEN);
+    deletePropBoth(KEYS.REFRESH_TOKEN);
+    deletePropBoth(KEYS.VERIFIER);
+    deletePropBoth(KEYS.CODE_CHALLENGE);
+    return true;
+  }
+
   function call(method, url, headers, payload) {
     log('[GX.Auth] call', method, url);
 
@@ -230,6 +260,7 @@ this.GX.Auth = (function () {
     handleOAuthCallback: handleOAuthCallback,
     setDebug: setDebug,
     migrateProperties: migrateProperties,
+    revoke: revoke,
     // 参照用
     API_BASE_URL: API_BASE_URL
   };
